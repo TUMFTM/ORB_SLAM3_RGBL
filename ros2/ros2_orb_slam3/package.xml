@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>ros2_orb_slam3</name>
+    <version>0.0.1</version>
+  <description>ROS 2 wrapper for the ORB_SLAM3 library</description>
+  <maintainer email="alberto.soragna@gmail.com">Alberto Soragna</maintainer>
+  <license>MIT</license>
+  <author>Alberto Soragna</author>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <build_depend>rclcpp</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>cv_bridge</build_depend>
+  <build_depend>message_filters</build_depend>
+  <build_depend>Pangolin</build_depend>
+
+  <exec_depend>rclcpp</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>message_filters</exec_depend>
+  <exec_depend>Pangolin</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

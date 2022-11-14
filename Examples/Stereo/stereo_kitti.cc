@@ -43,12 +43,16 @@ int main(int argc, char **argv)
     vector<string> vstrImageLeft;
     vector<string> vstrImageRight;
     vector<double> vTimestamps;
+
     LoadImages(string(argv[3]), vstrImageLeft, vstrImageRight, vTimestamps);
+
+    cout << "Done Loading Images" << endl;
 
     const int nImages = vstrImageLeft.size();
 
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
     ORB_SLAM3::System SLAM(argv[1],argv[2],ORB_SLAM3::System::STEREO,true);
+
     float imageScale = SLAM.GetImageScale();
 
     // Vector for tracking time statistics
@@ -162,8 +166,8 @@ void LoadImages(const string &strPathToSequence, vector<string> &vstrImageLeft,
         }
     }
 
-    string strPrefixLeft = strPathToSequence + "/image_0/";
-    string strPrefixRight = strPathToSequence + "/image_1/";
+    string strPrefixLeft = strPathToSequence + "image_0/";
+    string strPrefixRight = strPathToSequence + "image_1/";
 
     const int nTimes = vTimestamps.size();
     vstrImageLeft.resize(nTimes);

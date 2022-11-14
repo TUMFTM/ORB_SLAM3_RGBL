@@ -78,6 +78,7 @@ class Atlas;
 class Tracking;
 class LocalMapping;
 class LoopClosing;
+class DepthModule;
 class Settings;
 
 class System
@@ -91,6 +92,7 @@ public:
         IMU_MONOCULAR=3,
         IMU_STEREO=4,
         IMU_RGBD=5,
+        RGBL=6
     };
 
     // File type
@@ -114,6 +116,18 @@ public:
     // Input depthmap: Float (CV_32F).
     // Returns the camera pose (empty if tracking fails).
     Sophus::SE3f TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const double &timestamp, const vector<IMU::Point>& vImuMeas = vector<IMU::Point>(), string filename="");
+
+    // Process the given rgbd frame. Depthmap must be registered to the RGB frame.
+    // Input image: RGB (CV_8UC3) or grayscale (CV_8U). RGB is converted to grayscale.
+    // Input depthmap: Float (CV_32F).
+    // Returns the camera pose (empty if tracking fails).
+    Sophus::SE3f TrackRGBD_noIMU(const cv::Mat &im, const cv::Mat &depthmap, const double &timestamp, string filename="");
+
+    // Process the given rgbd frame. Depthmap must be registered to the RGB frame.
+    // Input image: RGB (CV_8UC3) or grayscale (CV_8U). RGB is converted to grayscale.
+    // Input depthmap: Float (CV_32F).
+    // Returns the camera pose (empty if tracking fails).
+    Sophus::SE3f TrackRGBL(const cv::Mat &im, const cv::Mat &depthmap, const double &timestamp, string filename="");
 
     // Proccess the given monocular frame and optionally imu data
     // Input images: RGB (CV_8UC3) or grayscale (CV_8U). RGB is converted to grayscale.
@@ -185,6 +199,9 @@ public:
     void ChangeDataset();
 
     float GetImageScale();
+    
+    void SaveAtlas(int type);
+    bool LoadAtlas(int type);
 
 #ifdef REGISTER_TIMES
     void InsertRectTime(double& time);
@@ -193,9 +210,6 @@ public:
 #endif
 
 private:
-
-    void SaveAtlas(int type);
-    bool LoadAtlas(int type);
 
     string CalculateCheckSum(string filename, int type);
 
@@ -254,6 +268,9 @@ private:
     std::vector<MapPoint*> mTrackedMapPoints;
     std::vector<cv::KeyPoint> mTrackedKeyPointsUn;
     std::mutex mMutexState;
+
+    // Depth Handler
+    DepthModule* DepthHandler;
 
     //
     string mStrLoadAtlasFromFile;

@@ -33,6 +33,8 @@
 #include "Converter.h"
 #include "Settings.h"
 
+#include "DepthModule.h"
+
 #include <mutex>
 #include <opencv2/opencv.hpp>
 
@@ -66,6 +68,9 @@ public:
 
     // Constructor for Monocular cameras.
     Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, GeometricCamera* pCamera, cv::Mat &distCoef, const float &bf, const float &thDepth, Frame* pPrevF = static_cast<Frame*>(NULL), const IMU::Calib &ImuCalib = IMU::Calib());
+
+    // Constructor for RGBL setup.
+    Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth, GeometricCamera* pCamera, DepthModule* DepthHandler, Frame* pPrevF = static_cast<Frame*>(NULL), const IMU::Calib &ImuCalib = IMU::Calib());
 
     // Destructor
     // ~Frame();
@@ -117,6 +122,7 @@ public:
 
     // Associate a "right" coordinate to a keypoint if there is valid depth in the depthmap.
     void ComputeStereoFromRGBD(const cv::Mat &imDepth);
+    void ComputeStereoFromRGBDwError(const cv::Mat &imDepth);
 
     // Backprojects a keypoint (if stereo/depth info available) into 3D world coordinates.
     bool UnprojectStereo(const int &i, Eigen::Vector3f &x3D);
@@ -297,6 +303,9 @@ public:
     string mNameFile;
 
     int mnDataset;
+
+    // Depth Handler
+    DepthModule* DepthHandler;
 
 #ifdef REGISTER_TIMES
     double mTimeORB_Ext;

@@ -285,6 +285,96 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
     AssignFeaturesToGrid();
 }
 
+// RGBL
+Frame::Frame(const cv::Mat &imGray, const cv::Mat &PointCloud, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth, GeometricCamera* pCamera, DepthModule* pDepthHandler, Frame* pPrevF, const IMU::Calib &ImuCalib)
+    :mpcpi(NULL),mpORBvocabulary(voc),mpORBextractorLeft(extractor),mpORBextractorRight(static_cast<ORBextractor*>(NULL)),
+     mTimeStamp(timeStamp), mK(K.clone()),mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth),
+     mImuCalib(ImuCalib), mpImuPreintegrated(NULL), mpPrevFrame(pPrevF), mpImuPreintegratedFrame(NULL), mpReferenceKF(static_cast<KeyFrame*>(NULL)), mbImuPreintegrated(false),
+     mpCamera(pCamera),mpCamera2(nullptr){
+
+    // Get Depth Handler
+    DepthHandler = pDepthHandler;
+
+    // Frame ID
+    mnId=nNextId++;
+
+    // Scale Level Info
+    mnScaleLevels = mpORBextractorLeft->GetLevels();
+    mfScaleFactor = mpORBextractorLeft->GetScaleFactor();
+    mfLogScaleFactor = log(mfScaleFactor);
+    mvScaleFactors = mpORBextractorLeft->GetScaleFactors();
+    mvInvScaleFactors = mpORBextractorLeft->GetInverseScaleFactors();
+    mvLevelSigma2 = mpORBextractorLeft->GetScaleSigmaSquares();
+    mvInvLevelSigma2 = mpORBextractorLeft->GetInverseScaleSigmaSquares();
+
+    // ORB extraction
+#ifdef REGISTER_TIMES
+    std::chrono::steady_clock::time_point time_StartExtORB = std::chrono::steady_clock::now();
+#endif
+    ExtractORB(0,imGray,0,0);
+#ifdef REGISTER_TIMES
+    std::chrono::steady_clock::time_point time_EndExtORB = std::chrono::steady_clock::now();
+
+    mTimeORB_Ext = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(time_EndExtORB - time_StartExtORB).count();
+#endif
+
+
+    N = mvKeys.size();
+
+    if(mvKeys.empty())
+        return;
+
+    UndistortKeyPoints();
+
+    // ComputeStereoFromRGBD(imDepth);
+
+    DepthHandler->CalculateDepthFromPcd(mvKeys, mvKeysUn, PointCloud, imGray.cols, imGray.rows);
+    mvDepth = DepthHandler->mvDepth;
+    mvuRight = DepthHandler->mvuRight;
+
+    mvpMapPoints = vector<MapPoint*>(N,static_cast<MapPoint*>(NULL));
+
+    mmProjectPoints.clear();// = map<long unsigned int, cv::Point2f>(N, static_cast<cv::Point2f>(NULL));
+    mmMatchedInImage.clear();
+
+    mvbOutlier = vector<bool>(N,false);
+
+    // This is done only for the first Frame (or after a change in the calibration)
+    if(mbInitialComputations)
+    {
+        ComputeImageBounds(imGray);
+
+        mfGridElementWidthInv=static_cast<float>(FRAME_GRID_COLS)/static_cast<float>(mnMaxX-mnMinX);
+        mfGridElementHeightInv=static_cast<float>(FRAME_GRID_ROWS)/static_cast<float>(mnMaxY-mnMinY);
+
+        fx = K.at<float>(0,0);
+        fy = K.at<float>(1,1);
+        cx = K.at<float>(0,2);
+        cy = K.at<float>(1,2);
+        invfx = 1.0f/fx;
+        invfy = 1.0f/fy;
+
+        mbInitialComputations=false;
+    }
+
+    mb = mbf/fx;
+
+    mpMutexImu = new std::mutex();
+
+    //Set no stereo fisheye information
+    Nleft = -1;
+    Nright = -1;
+    mvLeftToRightMatch = vector<int>(0);
+    mvRightToLeftMatch = vector<int>(0);
+    // mTlr = cv::Mat(3,4,CV_32F);
+    // mTrl = cv::Mat(3,4,CV_32F);
+    // mvStereo3Dpoints = vector<cv::Mat>(0);
+    mvStereo3Dpoints = vector<Eigen::Vector3f>(0);
+    monoLeft = -1;
+    monoRight = -1;
+
+    AssignFeaturesToGrid();
+}
 
 Frame::Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, GeometricCamera* pCamera, cv::Mat &distCoef, const float &bf, const float &thDepth, Frame* pPrevF, const IMU::Calib &ImuCalib)
     :mpcpi(NULL),mpORBvocabulary(voc),mpORBextractorLeft(extractor),mpORBextractorRight(static_cast<ORBextractor*>(NULL)),
@@ -995,6 +1085,46 @@ void Frame::ComputeStereoFromRGBD(const cv::Mat &imDepth)
         const float &u = kp.pt.x;
 
         const float d = imDepth.at<float>(v,u);
+
+        if(d>0)
+        {
+            mvDepth[i] = d;
+            mvuRight[i] = kpU.pt.x-mbf/d;
+        }
+    }
+}
+
+void Frame::ComputeStereoFromRGBDwError(const cv::Mat &imDepth){
+    mvuRight = vector<float>(N,-1);
+    mvDepth = vector<float>(N,-1);
+
+    float lat_error = 0;
+    float vert_error = 0;
+    float vert_lim = 50;
+    float mincol = (vert_lim/100) * imDepth.rows;
+
+    for(int i=0; i<N; i++)
+    {
+        const cv::KeyPoint &kp = mvKeys[i];
+        const cv::KeyPoint &kpU = mvKeysUn[i];
+
+        const float &v = kp.pt.y;
+        const float &u = kp.pt.x;
+
+        //Apply Error to u, v
+        float u_ = u + lat_error;
+        float v_ = v + vert_error;
+
+        // if (u_ > imDepth.cols || u_ < 0 || v_ > imDepth.rows || v_ < 0){
+        //     continue;
+        // }
+        float d = 0;
+
+        if (v_ < mincol){
+            d = 0;
+        }else{
+            d = imDepth.at<float>(v_,u_);
+        }
 
         if(d>0)
         {

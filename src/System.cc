@@ -65,6 +65,8 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
         cout << "Stereo-Inertial" << endl;
     else if(mSensor==IMU_RGBD)
         cout << "RGB-D-Inertial" << endl;
+    else if(mSensor==RGBL)
+        cout << "RGB-LiDAR" << endl;
 
     //Check settings file
     cv::FileStorage fsSettings(strSettingsFile.c_str(), cv::FileStorage::READ);
@@ -75,6 +77,7 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     }
 
     cv::FileNode node = fsSettings["File.version"];
+
     if(!node.empty() && node.isString() && node.string() == "1.0"){
         settings_ = new Settings(strSettingsFile,mSensor);
 
@@ -213,6 +216,10 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     mpLoopCloser = new LoopClosing(mpAtlas, mpKeyFrameDatabase, mpVocabulary, mSensor!=MONOCULAR, activeLC); // mSensor!=MONOCULAR);
     mptLoopClosing = new thread(&ORB_SLAM3::LoopClosing::Run, mpLoopCloser);
 
+    // Initialize the Depth Module
+    if (mSensor==RGBL)
+        DepthHandler = new DepthModule(strSettingsFile, mSensor);
+
     //Set pointers between threads
     mpTracker->SetLocalMapper(mpLocalMapper);
     mpTracker->SetLoopClosing(mpLoopCloser);
@@ -309,8 +316,12 @@ Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, 
     }
 
     if (mSensor == System::IMU_STEREO)
+    {
         for(size_t i_imu = 0; i_imu < vImuMeas.size(); i_imu++)
+        {
             mpTracker->GrabImuData(vImuMeas[i_imu]);
+        }
+    }
 
     // std::cout << "start GrabImageStereo" << std::endl;
     Sophus::SE3f Tcw = mpTracker->GrabImageStereo(imLeftToFeed,imRightToFeed,timestamp,filename);
@@ -388,6 +399,137 @@ Sophus::SE3f System::TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const
             mpTracker->GrabImuData(vImuMeas[i_imu]);
 
     Sophus::SE3f Tcw = mpTracker->GrabImageRGBD(imToFeed,imDepthToFeed,timestamp,filename);
+
+    unique_lock<mutex> lock2(mMutexState);
+    mTrackingState = mpTracker->mState;
+    mTrackedMapPoints = mpTracker->mCurrentFrame.mvpMapPoints;
+    mTrackedKeyPointsUn = mpTracker->mCurrentFrame.mvKeysUn;
+    return Tcw;
+}
+
+Sophus::SE3f System::TrackRGBD_noIMU(const cv::Mat &im, const cv::Mat &depthmap, const double &timestamp, string filename)
+{
+    if(mSensor!=RGBD  && mSensor!=IMU_RGBD)
+    {
+        cerr << "ERROR: you called TrackRGBD but input sensor was not set to RGBD." << endl;
+        exit(-1);
+    }
+
+    cv::Mat imToFeed = im.clone();
+    cv::Mat imDepthToFeed = depthmap.clone();
+    if(settings_ && settings_->needToResize()){
+        cv::Mat resizedIm;
+        cv::resize(im,resizedIm,settings_->newImSize());
+        imToFeed = resizedIm;
+
+        cv::resize(depthmap,imDepthToFeed,settings_->newImSize());
+    }
+
+    // Check mode change
+    {
+        unique_lock<mutex> lock(mMutexMode);
+        if(mbActivateLocalizationMode)
+        {
+            mpLocalMapper->RequestStop();
+
+            // Wait until Local Mapping has effectively stopped
+            while(!mpLocalMapper->isStopped())
+            {
+                usleep(1000);
+            }
+
+            mpTracker->InformOnlyTracking(true);
+            mbActivateLocalizationMode = false;
+        }
+        if(mbDeactivateLocalizationMode)
+        {
+            mpTracker->InformOnlyTracking(false);
+            mpLocalMapper->Release();
+            mbDeactivateLocalizationMode = false;
+        }
+    }
+
+    // Check reset
+    {
+        unique_lock<mutex> lock(mMutexReset);
+        if(mbReset)
+        {
+            mpTracker->Reset();
+            mbReset = false;
+            mbResetActiveMap = false;
+        }
+        else if(mbResetActiveMap)
+        {
+            mpTracker->ResetActiveMap();
+            mbResetActiveMap = false;
+        }
+    }
+
+    Sophus::SE3f Tcw = mpTracker->GrabImageRGBD(imToFeed,imDepthToFeed,timestamp,filename);
+
+    unique_lock<mutex> lock2(mMutexState);
+    mTrackingState = mpTracker->mState;
+    mTrackedMapPoints = mpTracker->mCurrentFrame.mvpMapPoints;
+    mTrackedKeyPointsUn = mpTracker->mCurrentFrame.mvKeysUn;
+    return Tcw;
+}
+
+Sophus::SE3f System::TrackRGBL(const cv::Mat &im, const cv::Mat& PointCloud, const double &timestamp, string filename)
+{
+    if(mSensor!=RGBL)
+    {
+        cerr << "ERROR: you called TrackRGBL but input sensor was not set to RGBL." << endl;
+        exit(-1);
+    }   
+
+    cv::Mat imToFeed = im.clone();
+    if(settings_ && settings_->needToResize()){
+        cv::Mat resizedIm;
+        cv::resize(im,resizedIm,settings_->newImSize());
+        imToFeed = resizedIm;
+    } 
+
+    // Check mode change
+    {
+        unique_lock<mutex> lock(mMutexMode);
+        if(mbActivateLocalizationMode)
+        {
+            mpLocalMapper->RequestStop();
+
+            // Wait until Local Mapping has effectively stopped
+            while(!mpLocalMapper->isStopped())
+            {
+                usleep(1000);
+            }
+
+            mpTracker->InformOnlyTracking(true);
+            mbActivateLocalizationMode = false;
+        }
+        if(mbDeactivateLocalizationMode)
+        {
+            mpTracker->InformOnlyTracking(false);
+            mpLocalMapper->Release();
+            mbDeactivateLocalizationMode = false;
+        }
+    }
+
+    // Check reset
+    {
+        unique_lock<mutex> lock(mMutexReset);
+        if(mbReset)
+        {
+            mpTracker->Reset();
+            mbReset = false;
+            mbResetActiveMap = false;
+        }
+        else if(mbResetActiveMap)
+        {
+            mpTracker->ResetActiveMap();
+            mbResetActiveMap = false;
+        }
+    }
+
+    Sophus::SE3f Tcw = mpTracker->GrabImageRGBL(imToFeed, PointCloud, *DepthHandler, timestamp,filename);
 
     unique_lock<mutex> lock2(mMutexState);
     mTrackingState = mpTracker->mState;

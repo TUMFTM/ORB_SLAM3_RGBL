@@ -3,6 +3,7 @@
 
 # Unignore all with extensions
 !*.*
+!Dockerfile
 
 # Unignore all dirs
 !*/
@@ -91,3 +92,5 @@ my_settings.txt
 borrar/*
 
 */ExecMean.txt
+
+.vscode/

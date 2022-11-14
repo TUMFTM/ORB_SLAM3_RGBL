@@ -3,21 +3,30 @@
 #--------------------------------------------------------------------------------------------
 # Camera Parameters. Adjust them!
 #--------------------------------------------------------------------------------------------
-File.version: "1.0"
+# File.version: "1.0"
 
-Camera.type: "Rectified"
+Camera.type: "PinHole" # "PinHole"
 
 # Camera calibration and distortion parameters (OpenCV) 
-Camera1.fx: 718.856
-Camera1.fy: 718.856
-Camera1.cx: 607.1928
-Camera1.cy: 185.2157
+Camera.fx: 718.856
+Camera.fy: 718.856
+Camera.cx: 607.1928
+Camera.cy: 185.2157
+
+Camera.k1: 0.0
+Camera.k2: 0.0
+Camera.p1: 0.0
+Camera.p2: 0.0
+Camera.k3: 0.0
 
 Camera.width: 1241
 Camera.height: 376
 
 # Camera frames per second 
-Camera.fps: 10
+Camera.fps: 10.0
+
+# IR projector baseline times fx (aprox.)
+Camera.bf: 100.0
 
 Stereo.b: 0.53716
 
@@ -57,7 +66,7 @@ Viewer.PointSize: 2.0
 Viewer.CameraSize: 0.7
 Viewer.CameraLineWidth: 3.0
 Viewer.ViewpointX: 0.0
-Viewer.ViewpointY: -100
+Viewer.ViewpointY: -100.0
 Viewer.ViewpointZ: -0.1
 Viewer.ViewpointF: 2000.0
 

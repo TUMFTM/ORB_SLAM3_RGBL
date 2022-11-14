@@ -52,6 +52,9 @@ public:
 
     bool both;
 
+    // Create Depth Overlay
+    cv::Mat ImageDepthmapOverlay(cv::Mat &img, cv::Mat &Depthmap, const int maxVal);
+
 protected:
 
     void DrawTextInfo(cv::Mat &im, int nState, cv::Mat &imText);

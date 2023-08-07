@@ -136,15 +136,22 @@ Upsamled depth images will be saved under /path/to/dataset/sequences/00/image_0_
 
 ## References
 
-Florian Sauerbeck, Benjamin Obermeier, Martin Rudolph, and Johannes Betz "RGB-L: Enhancing Indirect Visual SLAM using LiDAR-based Dense Depth Maps" (under review)
+If you use this repository for any academic work, please cite our original paper:
 
+"RGB-L: Enhancing Indirect Visual SLAM using LiDAR-based Dense Depth Maps" \
+Florian Sauerbeck, Benjamin Obermeier, Martin Rudolph, and Johannes Betz 
+
+[Link to paper]( https://doi.org/10.1109/ICCCR56747.2023.10194045) \
 [Link to preprint]( https://arxiv.org/abs/2212.02085)
 
+
 ``` bib
-@article{sauerbeck2022rgb,
-  title={RGB-L: Enhancing Indirect Visual SLAM using LiDAR-based Dense Depth Maps},
+@INPROCEEDINGS{sauerbeck2022rgb,
   author={Sauerbeck, Florian and Obermeier, Benjamin and Rudolph, Martin and Betz, Johannes},
-  journal={arXiv preprint arXiv:2212.02085},
-  year={2022}
+  booktitle={2023 3rd International Conference on Computer, Control and Robotics (ICCCR)}, 
+  title={RGB-L: Enhancing Indirect Visual SLAM Using LiDAR-Based Dense Depth Maps}, 
+  year={2023},
+  pages={95-100},
+  doi={https://doi.org/10.1109/ICCCR56747.2023.10194045},
 }
 ```
